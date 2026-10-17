@@ -9,6 +9,12 @@ source "$SCRIPT_DIR/../util/env_runtime.sh"
 # Export all relevant environment variables for child processes
 source "$SCRIPT_DIR/../util/export_env.sh"
 
+# `hyprmcsr destroy` can be called without a preceding `run` in this shell.
+if [ -z "$PROFILE" ] && [ -f "$STATE_DIR/profile" ]; then
+  PROFILE=$(cat "$STATE_DIR/profile")
+  export PROFILE
+fi
+
 toggle_binds_key=$(jq -r '.binds.toggleBinds' "$PROFILE_CONFIG_FILE")
 if [ -n "$toggle_binds_key" ] && [ "$toggle_binds_key" != "null" ]; then
   hyprctl -q keyword unbind $toggle_binds_key
@@ -46,11 +52,20 @@ fi
 if [ -f "$STATE_DIR/observe_state.pid" ]; then
   OBSERVE_PID=$(cat "$STATE_DIR/observe_state.pid")
   if kill -0 "$OBSERVE_PID" 2>/dev/null; then
-   kill -TERM -"$OBSERVE_PID"
+    kill -TERM -"$OBSERVE_PID" 2>/dev/null || kill -TERM "$OBSERVE_PID" 2>/dev/null || true
   fi
   rm -f "$STATE_DIR/observe_state.pid"
 fi
 
+# Restore the global mouse sensitivity that was active before the session.
+SENSITIVITY_STATE_FILE="$STATE_DIR/original_sensitivity"
+if [ -f "$SENSITIVITY_STATE_FILE" ]; then
+  ORIGINAL_SENSITIVITY=$(cat "$SENSITIVITY_STATE_FILE")
+  if [ -n "$ORIGINAL_SENSITIVITY" ]; then
+    # '--' keeps negative values from being parsed as hyprctl options.
+    hyprctl -q -- keyword input:sensitivity "$ORIGINAL_SENSITIVITY"
+  fi
+fi
 
 # Remove transient state files but preserve persistent instance data
 # (window_address, prism_instance_id, minecraft_root) so hyprmcsr can

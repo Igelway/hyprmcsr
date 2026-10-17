@@ -20,6 +20,11 @@ if [ -z "$MODE" ]; then
   exit 1
 fi
 
+if [ -z "$WINDOW_ADDRESS" ] || ! hyprctl clients -j | jq -e --arg addr "$WINDOW_ADDRESS" '.[] | select(.address == $addr)' >/dev/null 2>&1; then
+  echo "[hyprmcsr] Minecraft window not found; skipping mode switch to '$MODE'." >&2
+  exit 1
+fi
+
 # Toggle to normal if already in this mode
 if [ "$CURRENT_MODE" = "$MODE" ]; then
   NEXT_MODE="normal"
@@ -38,6 +43,39 @@ fi
 TARGET_SIZE=$(jq -r --arg m "$NEXT_MODE" '.modeSwitch.modes[$m].size // .modeSwitch.default.size' "$PROFILE_CONFIG_FILE")
 TARGET_SENSITIVITY=$(jq -r --arg m "$NEXT_MODE" '.modeSwitch.modes[$m].sensitivity // .modeSwitch.default.sensitivity' "$PROFILE_CONFIG_FILE")
 
+if [ -z "$TARGET_SIZE" ] || [ "$TARGET_SIZE" = "null" ]; then
+  echo "[hyprmcsr] No size configured for mode '$NEXT_MODE' and no default size." >&2
+  exit 1
+fi
+
+MONITOR_ID=$(hyprctl clients -j | jq -r --arg addr "$WINDOW_ADDRESS" '.[] | select(.address == $addr) | .monitor')
+
+# Handle fullscreen size
+if [ "$TARGET_SIZE" = "fullscreen" ]; then
+  read -r WIDTH HEIGHT SCALE <<< "$(hyprctl monitors -j | jq -r --arg mid "$MONITOR_ID" '.[] | select((.id | tostring) == $mid) | "\(.width) \(.height) \(.scale)"')"
+  if [ -z "$WIDTH" ] || [ -z "$HEIGHT" ] || [ -z "$SCALE" ]; then
+    echo "[hyprmcsr] Could not determine the size of monitor '$MONITOR_ID'." >&2
+    exit 1
+  fi
+  TARGET_WIDTH=$(awk "BEGIN {printf \"%.0f\", $WIDTH / $SCALE}")
+  TARGET_HEIGHT=$(awk "BEGIN {printf \"%.0f\", $HEIGHT / $SCALE}")
+else
+  # Split size (e.g. 1920x1080)
+  IFS="x" read -r TARGET_WIDTH TARGET_HEIGHT <<< "$TARGET_SIZE"
+fi
+
+if ! [[ "$TARGET_WIDTH" =~ ^[0-9]+$ && "$TARGET_HEIGHT" =~ ^[0-9]+$ ]]; then
+  echo "[hyprmcsr] Invalid size '$TARGET_SIZE' for mode '$NEXT_MODE'." >&2
+  exit 1
+fi
+
+# Omit the sensitivity keyword when no value is configured; an empty or
+# literal "null" value would otherwise be passed to Hyprland.
+SENSITIVITY_CMD=""
+if [ -n "$TARGET_SENSITIVITY" ] && [ "$TARGET_SENSITIVITY" != "null" ]; then
+  SENSITIVITY_CMD="keyword input:sensitivity $TARGET_SENSITIVITY;"
+fi
+
 # Run onExit: run all commands in array (only if PREVIOUS_MODE is set)
 if [ -n "$PREVIOUS_MODE" ]; then
   jq -c --arg m "$PREVIOUS_MODE" '.modeSwitch.modes[$m].onExit[]? // .modeSwitch.default.onExit[]? // empty' "$PROFILE_CONFIG_FILE" | while IFS= read -r cmd; do
@@ -49,23 +87,12 @@ fi
 # Update state
 echo "$NEXT_MODE" > "$STATE_FILE"
 
-MONITOR_ID=$(hyprctl clients -j | jq -r ".[] | select(.address==\"$WINDOW_ADDRESS\") | .monitor")
-# Handle fullscreen size
-if [ "$TARGET_SIZE" = "fullscreen" ]; then
-  read WIDTH HEIGHT SCALE <<<$(hyprctl monitors -j | jq -r ".[] | select(.id==$MONITOR_ID) | \"\(.width) \(.height) \(.scale)\"")
-  TARGET_WIDTH=$(awk "BEGIN {printf \"%.0f\", $WIDTH / $SCALE}")
-  TARGET_HEIGHT=$(awk "BEGIN {printf \"%.0f\", $HEIGHT / $SCALE}")
-else
-  # Split size (e.g. 1920x1080)
-  IFS="x" read -r TARGET_WIDTH TARGET_HEIGHT <<< "$TARGET_SIZE"
-fi
-
 # Set window size and sensitivity
 hyprctl --batch "
   dispatch focuswindow address:$WINDOW_ADDRESS;
   dispatch resizewindowpixel exact $TARGET_WIDTH $TARGET_HEIGHT,address:$WINDOW_ADDRESS;
   dispatch centerwindow;
-  keyword input:sensitivity $TARGET_SENSITIVITY;
+  $SENSITIVITY_CMD
   dispatch focuswindow address:$WINDOW_ADDRESS
 "
 LAST_MONITOR_FILE="$STATE_DIR/last_monitor"
