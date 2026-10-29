@@ -5,6 +5,7 @@ export SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 source "$SCRIPT_DIR/../util/env_core.sh"
 source "$SCRIPT_DIR/../util/env_prism.sh"
 source "$SCRIPT_DIR/../util/env_runtime.sh"
+source "$SCRIPT_DIR/../util/hypr_compat.sh"
 
 # Export all relevant environment variables for child processes
 source "$SCRIPT_DIR/../util/export_env.sh"
@@ -17,19 +18,19 @@ fi
 
 toggle_binds_key=$(jq -r '.binds.toggleBinds' "$PROFILE_CONFIG_FILE")
 if [ -n "$toggle_binds_key" ] && [ "$toggle_binds_key" != "null" ]; then
-  hyprctl -q keyword unbind $toggle_binds_key
+  hypr_unbind "$toggle_binds_key"
 fi
 
 # Remove custom binds
 custom_binds=$(jq -r '.binds.custom // {} | to_entries[] | .key' "$PROFILE_CONFIG_FILE")
 if [ -n "$custom_binds" ]; then
   while IFS= read -r bind; do
-    hyprctl -q keyword unbind "$bind"
+    hypr_unbind "$bind"
   done <<< "$custom_binds"
 fi
 
 jq -r '.binds.modeSwitch | to_entries[] | "\(.key) \(.value)"' "$PROFILE_CONFIG_FILE" | while read -r mode key; do
-  hyprctl -q keyword unbind $key
+  hypr_unbind "$key"
 done
 
 # Run onDestroy commands from profile config and wait for them before cleanup
@@ -62,8 +63,7 @@ SENSITIVITY_STATE_FILE="$STATE_DIR/original_sensitivity"
 if [ -f "$SENSITIVITY_STATE_FILE" ]; then
   ORIGINAL_SENSITIVITY=$(cat "$SENSITIVITY_STATE_FILE")
   if [ -n "$ORIGINAL_SENSITIVITY" ]; then
-    # '--' keeps negative values from being parsed as hyprctl options.
-    hyprctl -q -- keyword input:sensitivity "$ORIGINAL_SENSITIVITY"
+    hypr_set_sensitivity "$ORIGINAL_SENSITIVITY"
   fi
 fi
 

@@ -35,6 +35,7 @@ fi
 # Source env scripts from util
 source "$SCRIPT_DIR/../util/env_core.sh"
 source "$SCRIPT_DIR/../util/env_prism.sh"
+source "$SCRIPT_DIR/../util/hypr_compat.sh"
 
 # Export all relevant environment variables for child processes
 SCRIPT_DIR="${SCRIPT_DIR:-$(dirname "$0")}"
@@ -82,12 +83,12 @@ fi
 
 # Set keybinds for mode switches
 jq -r '.binds.modeSwitch | to_entries[] | "\(.key) \(.value)"' "$PROFILE_CONFIG_FILE" | while read -r mode key; do
-    hyprctl -q keyword bindni $key,exec,"$HYPRMCSR -h $HYPRMCSR_PROFILE toggle_mode $mode"
+    hypr_bind "$key" "$HYPRMCSR -h $HYPRMCSR_PROFILE toggle_mode $mode" ni
 done
 
 toggle_binds_key=$(jq -r '.binds.toggleBinds' "$PROFILE_CONFIG_FILE")
 if [ -n "$toggle_binds_key" ] && [ "$toggle_binds_key" != "null" ]; then
-  hyprctl -q keyword bind $toggle_binds_key,exec,"$HYPRMCSR -h $HYPRMCSR_PROFILE toggle-binds"
+  hypr_bind "$toggle_binds_key" "$HYPRMCSR -h $HYPRMCSR_PROFILE toggle-binds"
 fi
 
 # Evaluate prismLauncher config (new) or prismWrapperCommand (deprecated)
@@ -225,7 +226,7 @@ custom_binds=$(jq -r '.binds.custom // {} | keys[]' "$PROFILE_CONFIG_FILE")
 if [ -n "$custom_binds" ]; then
   while IFS= read -r bind; do
     [ -z "$bind" ] && continue
-    hyprctl -q keyword bind "$bind,exec,HYPRMCSR_PROFILE=\"$HYPRMCSR_PROFILE\" \"$SCRIPT_DIR/../util/custom_bind_wrapper.sh\" \"$bind\""
+    hypr_bind "$bind" "HYPRMCSR_PROFILE=\"$HYPRMCSR_PROFILE\" \"$SCRIPT_DIR/../util/custom_bind_wrapper.sh\" \"$bind\""
   done <<< "$custom_binds"
 fi
 

@@ -5,6 +5,7 @@ export SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 source "$SCRIPT_DIR/../util/env_core.sh"
 source "$SCRIPT_DIR/../util/env_prism.sh"
 source "$SCRIPT_DIR/../util/env_runtime.sh"
+source "$SCRIPT_DIR/../util/hypr_compat.sh"
 # Source env scripts from util
 WINDOW_CLASS_REGEX=$(jq -r '.minecraft.windowClassRegex // empty' "$PROFILE_CONFIG_FILE")
 WINDOW_TITLE_REGEX=$(jq -r '.minecraft.windowTitleRegex // empty' "$PROFILE_CONFIG_FILE")
@@ -112,13 +113,11 @@ source "$SCRIPT_DIR/../util/export_env.sh"
   fi
 
   if [ -n "$window_address" ]; then
-    hyprctl -q --batch "
-      dispatch setprop address:$window_address no_anim true;
-      dispatch setprop address:$window_address rounding 0;
-      dispatch focuswindow address:$window_address;
-      dispatch setfloating address:$window_address;
-      dispatch centerwindow;
-    "
+    hypr_set_window_prop "$window_address" no_anim true
+    hypr_set_window_prop "$window_address" rounding 0
+    hypr_focus_window "$window_address"
+    hypr_set_floating "$window_address"
+    hypr_center_window "$window_address"
   fi
 
   # Sound splitting: search for new sink-input with node.name == "java" AND media.role == "game"

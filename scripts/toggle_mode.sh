@@ -4,6 +4,7 @@ UTIL_DIR="$SCRIPT_DIR/../util"
 source "$UTIL_DIR/env_core.sh"
 source "$UTIL_DIR/env_prism.sh"
 source "$UTIL_DIR/env_runtime.sh"
+source "$UTIL_DIR/hypr_compat.sh"
 
 MODE="$1"
 STATE_FILE="$STATE_DIR/current_mode"
@@ -69,11 +70,11 @@ if ! [[ "$TARGET_WIDTH" =~ ^[0-9]+$ && "$TARGET_HEIGHT" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
-# Omit the sensitivity keyword when no value is configured; an empty or
+# Omit the sensitivity update when no value is configured; an empty or
 # literal "null" value would otherwise be passed to Hyprland.
-SENSITIVITY_CMD=""
+SET_SENSITIVITY="0"
 if [ -n "$TARGET_SENSITIVITY" ] && [ "$TARGET_SENSITIVITY" != "null" ]; then
-  SENSITIVITY_CMD="keyword input:sensitivity $TARGET_SENSITIVITY;"
+  SET_SENSITIVITY="1"
 fi
 
 # Run onExit: run all commands in array (only if PREVIOUS_MODE is set)
@@ -88,13 +89,11 @@ fi
 echo "$NEXT_MODE" > "$STATE_FILE"
 
 # Set window size and sensitivity
-hyprctl --batch "
-  dispatch focuswindow address:$WINDOW_ADDRESS;
-  dispatch resizewindowpixel exact $TARGET_WIDTH $TARGET_HEIGHT,address:$WINDOW_ADDRESS;
-  dispatch centerwindow;
-  $SENSITIVITY_CMD
-  dispatch focuswindow address:$WINDOW_ADDRESS
-"
+hypr_focus_window "$WINDOW_ADDRESS"
+hypr_resize_window "$WINDOW_ADDRESS" "$TARGET_WIDTH" "$TARGET_HEIGHT"
+hypr_center_window "$WINDOW_ADDRESS"
+[ "$SET_SENSITIVITY" = "1" ] && hypr_set_sensitivity "$TARGET_SENSITIVITY"
+hypr_focus_window "$WINDOW_ADDRESS"
 LAST_MONITOR_FILE="$STATE_DIR/last_monitor"
 
 if [ -n "$MONITOR_ID" ]; then

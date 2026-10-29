@@ -10,6 +10,7 @@
 - The state machine now matches loading screens by class (including `DownloadingTerrainScreen`/`class_434`), re-enables binds in-world as a safety net, and only centers the cursor on real gameplay-to-screen transitions.
 
 ### Fixed
+- Hyprland 0.57 compatibility: use the Lua IPC (`hl.bind`, `hl.unbind`, `hl.config`, `hl.dsp.*`) when the compositor reports `configProvider: lua`, while keeping the legacy `hyprctl keyword`/string-dispatcher path for older versions
 - Custom binds: fixed `realname` typo, accept a single command or an array, and stop quoting command JSON into the Hyprland bind
 - State observer: use Bash (the script used Bash-only syntax), wait indefinitely for the instance, and re-arm the file watch after atomic replacements
 - `hyprmcsr --help` now exits successfully; unknown commands report a proper error
